@@ -5,92 +5,63 @@ import android.util.Log
 import com.appsflyer.AppsFlyerConversionListener
 import com.appsflyer.AppsFlyerLib
 
-object AppsflyerManager {
-    private const val APPSFLYER_ID = "UfzmD9J3NRVH9AcyuBEvf8"
-    private lateinit var appContext: Context
+class AppsflyerManager(private val context: Context) {
+    private lateinit var conversionDataListener: ConversionDataListener
 
-    private var sub1: String = "None"
-    private var sub2: String = "None"
-    private var sub3: String = "None"
-    private var sub4: String = "None"
-    private var sub5: String = "None"
-
-    fun init(context: Context){
-        appContext = context.applicationContext
-
-        val appsflyer = AppsFlyerLib.getInstance()
-        appsflyer.setDebugLog(true)
-        appsflyer.setMinTimeBetweenSessions(0)
-        AppsFlyerLib.getInstance().setAppInviteOneLink("H5hv")
-
-        appsflyer.init(APPSFLYER_ID, conversionDataListener, context)
-        appsflyer.start(context)
+    fun init() {
+        val appsFlyerConfiguration = AppsFlyerLib.getInstance().init("UfzmD9J3NRVH9AcyuBEvf8", appsFlyerConversionListener, context)
+        appsFlyerConfiguration.setDebugLog(true)
+        AppsFlyerLib.getInstance().start(context)
     }
 
-    fun initWithSubIds(context: Context, sub1: String?, sub2: String?, sub3: String?, sub4: String?, sub5: String?) {
-        this.sub1 = sub1 ?: "None"
-        this.sub2 = sub2 ?: "None"
-        this.sub3 = sub3 ?: "None"
-        this.sub4 = sub4 ?: "None"
-        this.sub5 = sub5 ?: "None"
+    fun setConversionDataListener(listener: ConversionDataListener) {
+        conversionDataListener = listener
+    }
 
+    fun getSubIds(): Map<String, String> {
         val sharedPrefs = context.getSharedPreferences("AppsflyerData", Context.MODE_PRIVATE)
-        with (sharedPrefs.edit()) {
-            putString("sub1", this@AppsflyerManager.sub1)
-            putString("sub2", this@AppsflyerManager.sub2)
-            putString("sub3", this@AppsflyerManager.sub3)
-            putString("sub4", this@AppsflyerManager.sub4)
-            putString("sub5", this@AppsflyerManager.sub5)
-            apply()
-        }
+        val sub1 = sharedPrefs.getString("sub1", "None")!!
+        val sub2 = sharedPrefs.getString("sub2", "None")!!
+        val sub3 = sharedPrefs.getString("sub3", "None")!!
+        val sub4 = sharedPrefs.getString("sub4", "None")!!
+        val sub5 = sharedPrefs.getString("sub5", "None")!!
+
+        return mapOf(
+            "sub1" to sub1,
+            "sub2" to sub2,
+            "sub3" to sub3,
+            "sub4" to sub4,
+            "sub5" to sub5
+        )
     }
 
-    private val conversionDataListener = object : AppsFlyerConversionListener {
+    interface ConversionDataListener {
+        fun onConversionDataReceived(sub1: String, sub2: String, sub3: String, sub4: String, sub5: String)
+    }
+
+    private val appsFlyerConversionListener = object : AppsFlyerConversionListener {
         override fun onConversionDataSuccess(conversionData: MutableMap<String, Any>?) {
-            Log.e("onConversionDataSuccess", "conversionData.size = ${conversionData?.size}", )
+            Log.d("AppsflyerManager", "Conversion data received: $conversionData")
 
-            val sub1: String? = conversionData?.get("sub1") as? String
-            val sub2: String? = conversionData?.get("sub2") as? String
-            val sub3: String? = conversionData?.get("sub3") as? String
-            val sub4: String? = conversionData?.get("sub4") as? String
-            val sub5: String? = conversionData?.get("sub5") as? String
+            val sub1 = conversionData?.get("sub1") as? String ?: "None"
+            val sub2 = conversionData?.get("sub2") as? String ?: "None"
+            val sub3 = conversionData?.get("sub3") as? String ?: "None"
+            val sub4 = conversionData?.get("sub4") as? String ?: "None"
+            val sub5 = conversionData?.get("sub5") as? String ?: "None"
 
-            val utmCampaign: String? = conversionData?.get("campaign") as? String
-            val utmSource: String? = conversionData?.get("source") as? String
-            val utmMedium: String? = conversionData?.get("medium") as? String
-            val utmContent: String? = conversionData?.get("content") as? String
-            val utmTerm: String? = conversionData?.get("term") as? String
-
-            val eventValue: Map<String, Any> = mapOf(
-                "af_sub1" to (sub1 ?: "None"),
-                "af_sub2" to (sub2 ?: "None"),
-                "af_sub3" to (sub3 ?: "None"),
-                "af_sub4" to (sub4 ?: "None"),
-                "af_sub5" to (sub5 ?: "None"),
-                "utm_campaign" to (utmCampaign ?: "None"),
-                "utm_source" to (utmSource ?: "None"),
-                "utm_medium" to (utmMedium ?: "None"),
-                "utm_content" to (utmContent ?: "None"),
-                "utm_term" to (utmTerm ?: "None")
-            )
-
-            AppsFlyerLib.getInstance().logEvent(appContext, "af_purchase", eventValue)
-
-            Log.e("onConversionDataSuccess", eventValue.values.joinToString(" --;-- "), )
-            Log.e("onConversionDataSuccess", eventValue.entries.joinToString(" ; "), )
-        }
-        override fun onConversionDataFail(error: String?) {
-            Log.e("onConversionDataFail", "error onAttributionFailure :  $error")
+            conversionDataListener.onConversionDataReceived(sub1, sub2, sub3, sub4, sub5)
         }
 
-        override fun onAppOpenAttribution(data: MutableMap<String, String>?) {
-            data?.map {
-                Log.d("onAppOpenAttribution", "onAppOpen_attribute: ${it.key} = ${it.value}")
-            }
+        override fun onConversionDataFail(errorMessage: String?) {
+            Log.e("AppsflyerManager", "Failed to receive conversion data: $errorMessage")
         }
 
-        override fun onAttributionFailure(error: String?) {
-            Log.e("onAttributionFailure", "error onAttributionFailure :  $error")
+        override fun onAppOpenAttribution(conversionData: MutableMap<String, String>?) {
+            Log.d("AppsflyerManager", "App open attribution received: $conversionData")
+        }
+
+        override fun onAttributionFailure(errorMessage: String?) {
+            Log.e("AppsflyerManager", "Failed to receive attribution: $errorMessage")
         }
     }
 }
